@@ -59,7 +59,6 @@ export default React.memo(
               {...documentLevelMetaDataProps('notes')}
               label="Security Bulletin Summary"
               description="Holds the summary associated with the Security Bulletin."
-              section="Document"
             />
             <References
               {...documentLevelMetaDataProps('references')}

@@ -31,8 +31,6 @@ export default React.memo(
           category: '',
           text: '',
         })}
-        section={props.section}
-        isNote
       >
         {(itemProps) => <Note {...itemProps} />}
       </ArrayContainer>

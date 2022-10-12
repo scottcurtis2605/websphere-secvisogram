@@ -81,7 +81,7 @@ export default function ArrayContainer({ children, ...props }) {
               })}
             </div>
           ))}
-          { !(props.section === "Document" && props.isNote) &&
+          { !(props.instancePath === "/document/notes") &&
             (
               <div className="mb-2">
               <DefaultButton
