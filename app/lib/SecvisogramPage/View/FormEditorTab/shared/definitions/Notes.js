@@ -1,6 +1,5 @@
 import React from 'react'
 import ArrayContainer from '../ArrayContainer.js'
-import EnumAttribute from '../EnumAttribute.js'
 import ObjectContainer from '../ObjectContainer.js'
 import TextAreaAttribute from '../TextAreaAttribute.js'
 import TextAttribute from '../TextAttribute.js'
