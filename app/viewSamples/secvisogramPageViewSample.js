@@ -65,7 +65,7 @@ const props = {
       ],
     },
   },
-  activeTab: /** @type {'EDITOR'} */ ('EDITOR'),
+  activeTab: /** @type {'WEBSPHERE'} */ ('WEBSPHERE'),
   generatorEngineData: { name: 'Secvisogram', version: 'unidentified version' },
   DocumentsTab: /** @type {Props['DocumentsTab']} */ (
     (props) => (
@@ -144,6 +144,7 @@ const props = {
   },
   onServiceValidate: async () => ({ tests: [], isValid: true }),
   onPrepareDocumentForTemplate: async () => ({ document: {} }),
+  onGetDocWebSphere: async () => ({}),
   onGetDocMin: async () => ({}),
   onGetDocMax: async () => ({}),
   onCreateAdvisory: async () => ({ id: 'my-id', revision: '1-123' }),

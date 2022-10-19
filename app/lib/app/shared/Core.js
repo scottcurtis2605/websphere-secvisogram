@@ -4,6 +4,7 @@ import strip from '../../../../csaf-validator-lib/strip.js'
 import validate from '../../../../csaf-validator-lib/validate.js'
 import doc_max from './Core/doc-max.json'
 import doc_min from './Core/doc-min.json'
+import doc_websphere from './Core/doc-websphere.json'
 import { DocumentEntity } from './Core/entities.js'
 
 const INSTANT_TESTS = Object.values(basic)
@@ -98,7 +99,16 @@ export default function createCore() {
       /**
        * Provides a minimal new document.
        */
-      newDocMin() {
+      newDocWebSphere() {
+        return setGeneratorFields(new Date())({
+          ...doc_websphere,
+        })
+      },
+
+      /**
+       * Provides a minimal new document.
+       */
+      async newDocMin() {
         return setGeneratorFields(new Date())({
           ...doc_min,
         })

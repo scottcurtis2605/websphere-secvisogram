@@ -15,7 +15,13 @@ export interface Props {
     name: string
     version: string
   }
-  activeTab: 'EDITOR' | 'SOURCE' | 'PREVIEW' | 'CSAF-JSON' | 'DOCUMENTS'
+  activeTab:
+    | 'WEBSPHERE'
+    | 'EDITOR'
+    | 'SOURCE'
+    | 'PREVIEW'
+    | 'CSAF-JSON'
+    | 'DOCUMENTS'
   alert: {
     confirmLabel: string
     cancelLabel: string
@@ -45,7 +51,13 @@ export interface Props {
   onDownload(doc: {}): void
   onOpen(file: File): Promise<void | {}>
   onChangeTab(
-    tab: 'EDITOR' | 'SOURCE' | 'PREVIEW' | 'CSAF-JSON' | 'DOCUMENTS',
+    tab:
+      | 'WEBSPHERE'
+      | 'EDITOR'
+      | 'SOURCE'
+      | 'PREVIEW'
+      | 'CSAF-JSON'
+      | 'DOCUMENTS',
     document: {}
   ): void
   onValidate(document: {}): void
@@ -57,6 +69,7 @@ export interface Props {
       infos: Array<{ instancePath: string; message: string }>
     }>
   }>
+  onGetDocWebSphere(): Promise<{}>
   onGetDocMin(): Promise<{}>
   onGetDocMax(): Promise<{}>
   onCreateAdvisory(params: {
