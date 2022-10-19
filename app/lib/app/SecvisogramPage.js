@@ -25,7 +25,7 @@ const alertSaveInvalid = {
 
 const core = createCore()
 
-const doc = core.document.newDocMin()
+const doc = core.document.newDocWebSphere()
 
 /**
  * Holds the application-state and provides memoized callbacks for the view
@@ -65,7 +65,7 @@ const SecvisogramPage = () => {
       doc,
     },
     activeTab: /** @type {React.ComponentProps<typeof View>['activeTab']} */ (
-      'EDITOR'
+      'WEBSPHERE'
     ),
     isTabLocked: false,
   })
@@ -78,13 +78,15 @@ const SecvisogramPage = () => {
           ? 'DOCUMENTS'
           : searchParams.get('tab') === 'EDITOR'
           ? 'EDITOR'
+          : searchParams.get('tab') === 'WEBSPHERE'
+          ? 'WEBSPHERE'
           : searchParams.get('tab') === 'SOURCE'
           ? 'SOURCE'
           : searchParams.get('tab') === 'PREVIEW'
           ? 'PREVIEW'
           : searchParams.get('tab') === 'CSAF-JSON'
           ? 'CSAF-JSON'
-          : 'EDITOR'
+          : 'WEBSPHERE'
       }
       isTabLocked={isTabLocked}
       isLoading={isLoading}
@@ -219,6 +221,9 @@ const SecvisogramPage = () => {
         },
         [handleError]
       )}
+      onGetDocWebSphere={async () => {
+        return core.document.newDocWebSphere()
+      }}
       onGetDocMin={async () => {
         return core.document.newDocMin()
       }}

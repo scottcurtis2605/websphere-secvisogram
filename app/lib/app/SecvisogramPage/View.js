@@ -1,6 +1,7 @@
 import { faCodeBranch } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import React from 'react'
+import Hotkeys from 'react-hot-keys'
 import * as semver from 'semver'
 import BackendUnavailableError from '../shared/BackendUnavailableError.js'
 import AppConfigContext from '../shared/context/AppConfigContext.js'
@@ -22,7 +23,7 @@ import Reducer from './View/Reducer.js'
 import Alert from './View/shared/Alert.js'
 import useDebounce from './View/shared/useDebounce.js'
 import VersionSummaryDialog from './View/VersionSummaryDialog.js'
-import Hotkeys from 'react-hot-keys'
+import WebSphereFormEditorTab from './View/WebSphereFormEditorTab.js'
 
 const secvisogramVersion = SECVISOGRAM_VERSION // eslint-disable-line
 
@@ -47,6 +48,7 @@ function View({
   onOpen,
   onChangeTab,
   onValidate,
+  onGetDocWebSphere,
   onGetDocMin,
   onGetDocMax,
   onCreateAdvisory,
@@ -342,49 +344,59 @@ function View({
 
   const onNewHandler = () => {
     if (!appConfig.loginAvailable || (appConfig.loginAvailable && !userInfo)) {
-      onGetDocMin().then((minimalTemplate) =>
-        onGetDocMax().then((allFieldsTemplate) => {
-          const templates = new Map([
-            [
-              'MINIMAL',
-              {
-                templateContent: minimalTemplate,
-                templateDescription: 'Minimal',
-              },
-            ],
-            [
-              'ALL_FIELDS',
-              {
-                templateContent: allFieldsTemplate,
-                templateDescription: 'All Fields',
-              },
-            ],
-          ])
-          setNewDocumentDialog(
-            <NewDocumentDialog
-              ref={newDocumentDialogRef}
-              data={{
-                templates: Array.from(templates.entries()).map((e) => ({
-                  ...e[1],
-                  templateId: e[0],
-                })),
-              }}
-              onSubmit={(params) => {
-                confirmDocumentReplacement(() => {
-                  if (params.source === 'TEMPLATE') {
-                    setAdvisoryState({
-                      type: 'NEW_ADVISORY',
-                      csaf:
-                        templates.get(params.templateId)?.templateContent ?? {},
-                    })
-                  } else {
-                    onOpen(params.file)
-                  }
-                })
-              }}
-              onClose={() => setNewDocumentDialog(null)}
-            />
-          )
+      onGetDocWebSphere().then((webSphereTemplate) =>
+        onGetDocMin().then((minimalTemplate) => {
+          onGetDocMax().then((allFieldsTemplate) => {
+            const templates = new Map([
+              [
+                'WEBSPHERE_TEMPLATE',
+                {
+                  templateContent: webSphereTemplate,
+                  templateDescription: 'WebSphere Automation CSAF',
+                },
+              ],
+              [
+                'MINIMAL',
+                {
+                  templateContent: minimalTemplate,
+                  templateDescription: 'Minimal',
+                },
+              ],
+              [
+                'ALL_FIELDS',
+                {
+                  templateContent: allFieldsTemplate,
+                  templateDescription: 'All Fields',
+                },
+              ],
+            ])
+            setNewDocumentDialog(
+              <NewDocumentDialog
+                ref={newDocumentDialogRef}
+                data={{
+                  templates: Array.from(templates.entries()).map((e) => ({
+                    ...e[1],
+                    templateId: e[0],
+                  })),
+                }}
+                onSubmit={(params) => {
+                  confirmDocumentReplacement(() => {
+                    if (params.source === 'TEMPLATE') {
+                      setAdvisoryState({
+                        type: 'NEW_ADVISORY',
+                        csaf:
+                          templates.get(params.templateId)?.templateContent ??
+                          {},
+                      })
+                    } else {
+                      onOpen(params.file)
+                    }
+                  })
+                }}
+                onClose={() => setNewDocumentDialog(null)}
+              />
+            )
+          })
         })
       )
     } else {
@@ -435,9 +447,7 @@ function View({
         advisoryState={advisoryState}
         formValues={formValues}
         documentIsValid={!errors.length}
-        onPrepareDocumentForTemplate={
-          onPrepareDocumentForTemplate
-        }
+        onPrepareDocumentForTemplate={onPrepareDocumentForTemplate}
         onDownload={onDownload}
         onExportCSAF={onExportCSAF}
         onExportHTML={onExportHTML}
@@ -612,7 +622,9 @@ function View({
    * Get all possible key bindings concatenated with ','
    */
   function getAllKeybindings() {
-    return appConfig?.keyBindings ? Object.values(appConfig.keyBindings).join(',') : ''
+    return appConfig?.keyBindings
+      ? Object.values(appConfig.keyBindings).join(',')
+      : ''
   }
 
   return (
@@ -632,6 +644,9 @@ function View({
           <div>
             <div className="flex justify-between bg-gray-700">
               <div className="flex pl-5">
+                <button {...tabButtonProps('WEBSPHERE')}>
+                  WebSphere Editor
+                </button>
                 <button {...tabButtonProps('EDITOR')}>Form Editor</button>
                 <button {...tabButtonProps('SOURCE')}>JSON Editor</button>
                 <button {...tabButtonProps('PREVIEW')}>Preview</button>
@@ -813,7 +828,16 @@ function View({
             key={activeTab}
           >
             <>
-              {activeTab === 'EDITOR' ? (
+              {activeTab === 'WEBSPHERE' ? (
+                <WebSphereFormEditorTab
+                  formValues={formValues}
+                  validationErrors={errors}
+                  onUpdate={onUpdate}
+                  onDownload={onDownload}
+                  onCollectProductIds={onCollectProductIdsCallback}
+                  onCollectGroupIds={onCollectGroupIdsCallback}
+                />
+              ) : activeTab === 'EDITOR' ? (
                 <FormEditorTab
                   formValues={formValues}
                   validationErrors={errors}

@@ -2,8 +2,10 @@
 
 import CVSSVector from '../../lib/app/SecvisogramPage/View/FormEditorTab/Vulnerabilities/Scores/CVSS3Editor/CVSSVector.js'
 import ViewReducer from '../../lib/app/SecvisogramPage/View/Reducer.js'
+import CVSSVectorWebSphere from '../../lib/app/SecvisogramPage/View/WebSphereFormEditorTab/Vulnerabilities/Scores/CVSS3Editor/CVSSVector.js'
 import docMax from '../../lib/app/shared/Core/doc-max.json'
 import docMin from '../../lib/app/shared/Core/doc-min.json'
+import docWebSphere from '../../lib/app/shared/Core/doc-websphere.json'
 import { canCreateDocuments } from '../../lib/app/shared/permissions.js'
 import { getLoginEnabledConfig } from '../fixtures/appConfigData.js'
 import {
@@ -30,7 +32,7 @@ describe('SecvisogramPage', () => {
       for (const advisory of getAdvisories()) {
         const { advisoryId } = advisory
 
-        for (const tab of ['EDITOR', 'SOURCE']) {
+        for (const tab of ['EDITOR', 'SOURCE', 'WEBSPHERE']) {
           it(`user: ${user.preferredUsername}, advisoryId: ${advisoryId}, tab: ${tab}`, function () {
             cy.intercept(
               '/.well-known/appspecific/de.bsi.secvisogram.json',
@@ -95,7 +97,7 @@ describe('SecvisogramPage', () => {
             for (const error of validationResponse.tests.flatMap(
               (t) => t.errors
             )) {
-              if (tab === 'EDITOR') {
+              if (tab === 'EDITOR' || tab === 'WEBSPHERE') {
                 cy.get(`[data-testid="attribute_error-${error.instancePath}"]`)
               }
               cy.get(
@@ -182,10 +184,71 @@ describe('SecvisogramPage', () => {
     })
   })
 
+  describe('can open a minimal new document from filesystem in standalone mode via the WebSphere Editor', function () {
+    it(`in form editor`, function () {
+      cy.intercept('/.well-known/appspecific/de.bsi.secvisogram.json', {
+        statusCode: 404,
+        body: {},
+      }).as('wellKnownAppConfig')
+
+      cy.visit('?tab=WEBSPHERE')
+      cy.wait('@wellKnownAppConfig')
+
+      cy.get('[data-testid="new_document_button"]').click()
+
+      cy.get(`[data-testid="new_document-file_selector_button"]`).click()
+      cy.get(`[data-testid="new_document-file_input"]`).selectFile({
+        contents: /** @type {any} */ (Cypress.Buffer).from(
+          JSON.stringify(sampleUploadDocument)
+        ),
+        fileName: 'some_file.json',
+        mimeType: 'application/json',
+        lastModified: Date.now(),
+      })
+
+      cy.get(`[data-testid="new_document-create_document_button"]`).click()
+      cy.get('[data-testid="new_document_dialog"]').should('not.exist')
+      cy.get('[data-testid="attribute-/document/title"] input').should(
+        'have.value',
+        sampleUploadDocument.document.title
+      )
+    })
+
+    it(`in source editor`, function () {
+      cy.intercept('/.well-known/appspecific/de.bsi.secvisogram.json', {
+        statusCode: 404,
+        body: {},
+      }).as('wellKnownAppConfig')
+
+      cy.visit('?tab=SOURCE')
+      cy.wait('@wellKnownAppConfig')
+
+      cy.get('[data-testid="new_document_button"]').click()
+
+      cy.get(`[data-testid="new_document-file_selector_button"]`).click()
+      cy.get(`[data-testid="new_document-file_input"]`).selectFile({
+        contents: /** @type {any} */ (Cypress.Buffer).from(
+          JSON.stringify(sampleUploadDocument)
+        ),
+        fileName: 'some_file.json',
+        mimeType: 'application/json',
+        lastModified: Date.now(),
+      })
+
+      cy.get(`[data-testid="new_document-create_document_button"]`).click()
+      cy.get('[data-testid="new_document_dialog"]').should('not.exist')
+      cy.window().should((/** @type {any} */ win) => {
+        const doc = JSON.parse(win.MONACO_EDITOR.getModel().getValue())
+        expect(doc.document.title).to.equal(sampleUploadDocument.document.title)
+      })
+    })
+  })
+
   describe('can create a new document from template in standalone mode', function () {
     for (const template of [
       { templateId: 'MINIMAL', templateContent: docMin },
       { templateId: 'ALL_FIELDS', templateContent: docMax },
+      { templateId: 'WEBSPHERE_TEMPLATE', templateContent: docWebSphere },
     ]) {
       it(`templateId: ${template.templateId}`, function () {
         cy.intercept('/.well-known/appspecific/de.bsi.secvisogram.json', {
@@ -194,6 +257,59 @@ describe('SecvisogramPage', () => {
         }).as('wellKnownAppConfig')
 
         cy.visit('?tab=EDITOR')
+        cy.wait('@wellKnownAppConfig')
+
+        cy.get('[data-testid="new_document_button"]').click()
+
+        cy.get(`select[data-testid="new_document-templates-select"]`).select(
+          template.templateId
+        )
+
+        cy.get(`[data-testid="new_document-create_document_button"]`).click()
+        cy.get('[data-testid="new_document_dialog"]').should('not.exist')
+
+        cy.get('[data-testid="new_export_document_button"]').click()
+        cy.get('[data-testid="export_document-export_document_button"]').click()
+        cy.get('[data-testid="alert-confirm_button"]').click()
+        cy.readFile('cypress/downloads/csaf_2_0_invalid.json').then((body) => {
+          /**
+           * @param {any} doc
+           * @returns
+           */
+          const removeGeneratedPartsFromDocument = (doc) => ({
+            ...doc,
+            document: {
+              ...doc.document,
+              tracking: {
+                ...Object.fromEntries(
+                  Object.entries(doc.document.tracking).filter(
+                    ([key]) => key !== 'generator'
+                  )
+                ),
+              },
+            },
+          })
+          expect(removeGeneratedPartsFromDocument(body)).deep.include(
+            removeGeneratedPartsFromDocument(template.templateContent)
+          )
+        })
+      })
+    }
+  })
+
+  describe('can create a new document from template in standalone mode via the WebSphere Editor', function () {
+    for (const template of [
+      { templateId: 'MINIMAL', templateContent: docMin },
+      { templateId: 'ALL_FIELDS', templateContent: docMax },
+      { templateId: 'WEBSPHERE_TEMPLATE', templateContent: docWebSphere },
+    ]) {
+      it(`templateId: ${template.templateId}`, function () {
+        cy.intercept('/.well-known/appspecific/de.bsi.secvisogram.json', {
+          statusCode: 404,
+          body: {},
+        }).as('wellKnownAppConfig')
+
+        cy.visit('?tab=WEBSPHERE')
         cy.wait('@wellKnownAppConfig')
 
         cy.get('[data-testid="new_document_button"]').click()
@@ -254,6 +370,120 @@ describe('SecvisogramPage', () => {
           ).as('apiGetTemplates')
 
           cy.visit('?tab=EDITOR')
+          cy.wait('@wellKnownAppConfig')
+          cy.wait('@apiGetUserInfo')
+
+          cy.get('[data-testid="user_info"]').should('exist')
+          if (!canCreateDocuments(user.groups)) {
+            cy.get('[data-testid="new_document_button"]').should('not.exist')
+          } else {
+            cy.get('[data-testid="new_document_button"]').click()
+            cy.wait('@apiGetTemplates')
+
+            if (mode === 'TEMPLATE') {
+              for (const template of getTemplates()) {
+                cy.get(
+                  `select[data-testid="new_document-templates-select"] option[value="${template.templateId}"]`
+                ).should('exist')
+              }
+              cy.get(
+                `select[data-testid="new_document-templates-select"]`
+              ).select(template.templateId)
+
+              cy.intercept(
+                `/api/v1/advisories/templates/${template.templateId}`,
+                getGetTemplateContentResponse({ template })
+              ).as('apiGetTemplateContent')
+              cy.get(
+                `[data-testid="new_document-create_document_button"]`
+              ).click()
+              cy.get('[data-testid="new_document_dialog"]').should('not.exist')
+            } else {
+              cy.get(
+                `[data-testid="new_document-file_selector_button"]`
+              ).click()
+              cy.get(`[data-testid="new_document-file_input"]`).selectFile({
+                contents: /** @type {any} */ (Cypress.Buffer).from(
+                  JSON.stringify(sampleUploadDocument)
+                ),
+                fileName: 'some_file.json',
+                mimeType: 'application/json',
+                lastModified: Date.now(),
+              })
+
+              cy.get(
+                `[data-testid="new_document-create_document_button"]`
+              ).click()
+              cy.get('[data-testid="new_document_dialog"]').should('not.exist')
+              cy.get('[data-testid="attribute-/document/title"] input').should(
+                'have.value',
+                sampleUploadDocument.document.title
+              )
+            }
+
+            const createAdvisoryResponse = getCreateAdvisoryResponse()
+            cy.setCookie('XSRF-TOKEN', 'test-Value-123')
+            cy.intercept(
+              'POST',
+              '/api/v1/advisories',
+              createAdvisoryResponse
+            ).as('apiCreateAdvisory')
+            cy.intercept(
+              'GET',
+              `/api/v1/advisories/${createAdvisoryResponse.id}/`,
+              getGetAdvisoryDetailResponse({
+                advisoryId: createAdvisoryResponse.id,
+              })
+            ).as('apiGetAdvisoryDetail')
+            cy.get('[data-testid="save_button"]').click()
+
+            const summary = 'Summary'
+            const legacyVersion = 'Legacy version'
+            cy.get('[data-testid="submit_version-summary-textarea"]').type(
+              summary
+            )
+            cy.get('[data-testid="submit_version-legacy_version-input"]').type(
+              legacyVersion
+            )
+            cy.get('[data-testid="submit_version-submit"]').click()
+            cy.wait('@apiCreateAdvisory').then((xhr) => {
+              if (mode === 'TEMPLATE') {
+                expect(xhr.request.body.csaf).deep.equal(
+                  template.templateContent
+                )
+              } else {
+                expect(xhr.request.body.csaf).deep.equal(sampleUploadDocument)
+              }
+              expect(xhr.request.body.summary).to.equal(summary)
+              expect(xhr.request.body.legacyVersion).to.equal(legacyVersion)
+            })
+            cy.wait('@apiGetAdvisoryDetail')
+          }
+        })
+      }
+    }
+  })
+
+  describe('can create a new document in connected mode via the WebSphere Editor', function () {
+    for (const user of getUsers()) {
+      for (const mode of /** @type {const} */ (['TEMPLATE', 'FILESYSTEM'])) {
+        it(`user: ${user.preferredUsername}, mode: ${mode}`, function () {
+          const [template] = getTemplates()
+
+          cy.intercept(
+            '/.well-known/appspecific/de.bsi.secvisogram.json',
+            getLoginEnabledConfig()
+          ).as('wellKnownAppConfig')
+          cy.intercept(
+            getLoginEnabledConfig().userInfoUrl,
+            getUserInfo(user)
+          ).as('apiGetUserInfo')
+          cy.intercept(
+            '/api/v1/advisories/templates',
+            getGetTemplatesResponse()
+          ).as('apiGetTemplates')
+
+          cy.visit('?tab=WEBSPHERE')
           cy.wait('@wellKnownAppConfig')
           cy.wait('@apiGetUserInfo')
 
@@ -467,6 +697,63 @@ describe('SecvisogramPage', () => {
     ])) {
       it(`format: ${select}`, () => {
         cy.visit('?tab=EDITOR')
+        cy.get('[data-testid="new_export_document_button"]').click()
+        cy.get(
+          `[data-testid="export_document-${select}_selector_button"]`
+        ).click()
+
+        if (select === 'pdf') {
+          cy.get('[data-testid="pdf_document_iframe"]')
+            .should('exist')
+            .its('0.contentWindow')
+            .then((win) => {
+              cy.stub(win, 'print').as('printStub')
+            })
+          cy.get(
+            `[data-testid="export_document-export_document_button"]`
+          ).click()
+          cy.get('@printStub').should('have.been.called')
+        } else {
+          cy.get(
+            `[data-testid="export_document-export_document_button"]`
+          ).click()
+          cy.get(`[data-testid="alert-confirm_button"]`).click()
+
+          if (select === 'csaf-json') {
+            cy.readFile(
+              `cypress/downloads/csaf_2_0_invalid.json`,
+              'utf-8'
+            ).then((c) => {
+              expect(c).to.have.property('document')
+            })
+          } else if (select === 'csaf-json-stripped') {
+            cy.readFile(
+              `cypress/downloads/csaf_2_0_invalid.json`,
+              'utf-8'
+            ).then((c) => {
+              expect(c).to.deep.equal({})
+            })
+          } else if (select === 'html') {
+            cy.readFile(`cypress/downloads/csaf_2_0_invalid.html`, 'utf-8')
+            cy.document().then((doc) => {
+              expect(doc.doctype !== undefined).to.eq(true)
+              expect(doc.doctype?.name).to.eq('html')
+            })
+          }
+        }
+      })
+    }
+  })
+
+  describe('can download from local via the WebSphere Editor', () => {
+    for (const [select] of /** @type {const} */ ([
+      ['csaf-json', 'JSON', 'json'],
+      ['csaf-json-stripped', 'JSON', 'json'],
+      ['html', 'HTML', 'html'],
+      ['pdf', 'PDF', 'pdf'],
+    ])) {
+      it(`format: ${select}`, () => {
+        cy.visit('?tab=WEBSPHERE')
         cy.get('[data-testid="new_export_document_button"]').click()
         cy.get(
           `[data-testid="export_document-${select}_selector_button"]`
@@ -772,6 +1059,185 @@ describe('SecvisogramPage', () => {
 
       it('A 3.1 valid vector-string can not be upgraded', () => {
         const vector = new CVSSVector({})
+          .updateFromVectorString(
+            'CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N'
+          )
+          .updateVectorStringTo31()
+
+        expect(vector.canBeUpgraded).to.be.false
+      })
+    })
+
+    describe('CVSSMetricsWebSphereEditor', () => {
+      it('3.1 metrics can be calculated', () => {
+        const vector = new CVSSVectorWebSphere({
+          version: '3.1',
+          attackVector: 'NETWORK',
+          attackComplexity: 'HIGH',
+          privilegesRequired: 'LOW',
+          userInteraction: 'REQUIRED',
+          scope: 'UNCHANGED',
+          confidentialityImpact: 'HIGH',
+          integrityImpact: 'HIGH',
+          availabilityImpact: 'NONE',
+        })
+          .set('attackComplexity', 'LOW')
+          .set('exploitCodeMaturity', 'NONE')
+          .remove('exploitCodeMaturity')
+          .set('reportConfidence', 'NOT_DEFINED')
+
+        const data = vector.data
+        expect(data.version).to.equal('3.1')
+        expect(data.vectorString).to.equal(
+          'CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N'
+        )
+        expect(data.baseScore).to.equal(7.3)
+        expect(data.baseSeverity).to.equal('HIGH')
+      })
+
+      it('3.0 metrics can be calculated', () => {
+        const vector = new CVSSVectorWebSphere({
+          version: '3.0',
+          attackVector: 'NETWORK',
+          attackComplexity: 'HIGH',
+          privilegesRequired: 'LOW',
+          userInteraction: 'REQUIRED',
+          scope: 'UNCHANGED',
+          confidentialityImpact: 'HIGH',
+          integrityImpact: 'HIGH',
+          availabilityImpact: 'NONE',
+        })
+          .set('attackComplexity', 'LOW')
+          .set('exploitCodeMaturity', 'NONE')
+          .remove('exploitCodeMaturity')
+          .set('reportConfidence', 'NOT_DEFINED')
+
+        const data = vector.data
+        expect(data.version).to.equal('3.0')
+        expect(data.vectorString).to.equal(
+          'CVSS:3.0/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N'
+        )
+        expect(data.baseScore).to.equal(7.3)
+        expect(data.baseSeverity).to.equal('HIGH')
+      })
+
+      it('Metrics can be updated from a 3.1 vector-string', () => {
+        const vector = new CVSSVectorWebSphere({
+          availabilityImpact: 'NONE',
+        }).updateFromVectorString(
+          'CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N'
+        )
+
+        expect(vector.data).to.contain({
+          version: '3.1',
+          attackVector: 'NETWORK',
+          attackComplexity: 'LOW',
+          privilegesRequired: 'LOW',
+          userInteraction: 'REQUIRED',
+          scope: 'UNCHANGED',
+          confidentialityImpact: 'HIGH',
+          integrityImpact: 'HIGH',
+          availabilityImpact: 'NONE',
+        })
+      })
+
+      it('Metrics can be updated from a 3.0 vector-string', () => {
+        const vector = new CVSSVectorWebSphere({
+          availabilityImpact: 'NONE',
+        }).updateFromVectorString(
+          'CVSS:3.0/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N'
+        )
+
+        expect(vector.data).to.contain({
+          version: '3.0',
+          attackVector: 'NETWORK',
+          attackComplexity: 'LOW',
+          privilegesRequired: 'LOW',
+          userInteraction: 'REQUIRED',
+          scope: 'UNCHANGED',
+          confidentialityImpact: 'HIGH',
+          integrityImpact: 'HIGH',
+          availabilityImpact: 'NONE',
+        })
+      })
+
+      it('Updating from an invalid vector-string clears all fields', () => {
+        const vector = new CVSSVectorWebSphere({
+          availabilityImpact: 'NONE',
+          attackVector: '',
+          attackComplexity: '',
+          privilegesRequired: '',
+          userInteraction: '',
+          scope: '',
+          confidentialityImpact: '',
+          integrityImpact: '',
+        }).updateFromVectorString('CVSS:3.0/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:x')
+
+        expect(vector.data).to.contain({
+          vectorString: 'CVSS:3.0/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:x',
+          version: '',
+          attackVector: '',
+          attackComplexity: '',
+          privilegesRequired: '',
+          userInteraction: '',
+          scope: '',
+          confidentialityImpact: '',
+          integrityImpact: '',
+          availabilityImpact: '',
+        })
+        expect(vector.data).to.not.contain({ exploitCodeMaturity: '' })
+      })
+
+      it('CVSS3.0 metrics can be calculated', () => {
+        const vector = new CVSSVectorWebSphere({
+          version: '3.0',
+          attackVector: 'NETWORK',
+          attackComplexity: 'HIGH',
+          privilegesRequired: 'LOW',
+          userInteraction: 'REQUIRED',
+          scope: 'UNCHANGED',
+          confidentialityImpact: 'HIGH',
+          integrityImpact: 'HIGH',
+          availabilityImpact: 'NONE',
+          vectorString: 'CVSS:3.0/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N',
+        })
+          .set('attackComplexity', 'LOW')
+          .set('exploitCodeMaturity', 'NONE')
+          .remove('exploitCodeMaturity')
+          .set('reportConfidence', 'NOT_DEFINED')
+
+        const data = vector.data
+        expect(data.vectorString).to.equal(
+          'CVSS:3.0/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N'
+        )
+        expect(data.baseScore).to.equal(7.3)
+        expect(data.baseSeverity).to.equal('HIGH')
+        expect(data.version).to.equal('3.0')
+      })
+
+      it('A 3.0 valid vector-string can be upgraded', () => {
+        const vector = new CVSSVectorWebSphere({
+          vectorString: 'CVSS:3.0/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N',
+        }).updateFromVectorString(
+          'CVSS:3.0/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N'
+        )
+
+        expect(vector.canBeUpgraded).to.be.true
+        const upgradedVector = vector.updateVectorStringTo31()
+        expect(upgradedVector.data.vectorString).to.equal(
+          'CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N'
+        )
+        expect(upgradedVector.data.version).to.equal('3.1')
+      })
+
+      it('An invalid vector-string can not be upgraded', () => {
+        const vector = new CVSSVectorWebSphere({})
+
+        expect(vector.canBeUpgraded).to.be.false
+      })
+
+      it('A 3.1 valid vector-string can not be upgraded', () => {
+        const vector = new CVSSVectorWebSphere({})
           .updateFromVectorString(
             'CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:N'
           )
